@@ -1,0 +1,388 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Chat đơn giản • n8n webhook</title>
+  <meta name="description" content="Giao diện chat tối giản, gửi tin nhắn tới n8n webhook và hiển thị câu trả lời." />
+  <style>
+    :root{
+      --bg: #f7f7f8;
+      --panel: #ffffff;
+      --text: #1f2328;
+      --muted: #6b7280;
+      --border: #e5e7eb;
+      --user: #10b981;
+      --assistant: #2563eb;
+      --error: #ef4444;
+      --radius: 16px;
+      --shadow: 0 6px 24px rgba(0,0,0,.06);
+    }
+    @media (prefers-color-scheme: dark){
+      :root{
+        --bg: #0b0e14;
+        --panel: #0f131a;
+        --text: #e5e7eb;
+        --muted: #9ca3af;
+        --border: #1f2937;
+        --user: #34d399;
+        --assistant: #60a5fa;
+        --error: #f87171;
+        --shadow: 0 6px 24px rgba(0,0,0,.3);
+      }
+    }
+    html, body {height:100%}
+    body{
+      margin:0; background:var(--bg); color:var(--text); font: 16px/1.5 system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+    }
+    .app{display:grid; grid-template-rows:auto 1fr auto; height:100%;}
+
+    .topbar{
+      position:sticky; top:0; z-index:10;
+      display:flex; gap:.75rem; align-items:center; padding: .75rem .9rem; border-bottom:1px solid var(--border);
+      backdrop-filter: saturate(180%) blur(8px); background: color-mix(in oklab, var(--panel) 88%, transparent);
+    }
+    .brand{ font-weight: 700; letter-spacing:.2px; }
+    .spacer{flex:1}
+    .webhook-wrap{display:flex; gap:.5rem; align-items:center;}
+    .webhook{ width:min(48vw, 520px); max-width: 80vw; min-width: 200px;}
+    .webhook input{
+      width:100%; padding:.6rem .75rem; border-radius: 10px; border:1px solid var(--border); background: var(--panel);
+      color:var(--text); outline:none; box-shadow:none;
+    }
+    .webhook input::placeholder{ color: var(--muted); }
+    .btn{ cursor:pointer; border:none; border-radius: 12px; padding:.55rem .85rem; background:var(--assistant); color:white; font-weight:600; box-shadow: var(--shadow);}
+    .btn.secondary{ background:transparent; color:var(--text); border:1px solid var(--border); box-shadow:none;}
+
+    .messages{ overflow:auto; padding: 1rem; scroll-behavior:smooth; }
+    .empty{ opacity:.7; text-align:center; margin-top: 12vh; }
+
+    .msg{ display:grid; grid-template-columns: 40px 1fr; gap:.75rem; margin: .35rem 0; }
+    .avatar{ width:40px; height:40px; border-radius:12px; display:grid; place-items:center; font-weight:700; }
+    .avatar.user{ background: color-mix(in oklab, var(--user) 20%, var(--panel)); color: var(--user); border:1px solid color-mix(in oklab, var(--user) 45%, var(--border)); }
+    .avatar.assistant{ background: color-mix(in oklab, var(--assistant) 20%, var(--panel)); color: var(--assistant); border:1px solid color-mix(in oklab, var(--assistant) 45%, var(--border)); }
+    .bubble{ background: var(--panel); border:1px solid var(--border); border-radius: var(--radius); padding: .85rem .95rem; box-shadow: var(--shadow); white-space: pre-wrap; }
+    .meta{ font-size:.8rem; color: var(--muted); margin-top:.35rem; }
+
+    .msg.user .bubble{ border-left:4px solid var(--user); }
+    .msg.assistant .bubble{ border-left:4px solid var(--assistant); }
+
+    .bubble.error{ border-left-color: var(--error); outline:1px dashed color-mix(in oklab, var(--error) 60%, var(--border)); }
+
+    .typing{ display:inline-grid; grid-auto-flow:column; gap:.25rem; align-items:center; }
+    .typing .dot{ width:8px; height:8px; border-radius:50%; background: var(--muted); opacity:.6; animation: blink 1.4s infinite; }
+    .typing .dot:nth-child(2){ animation-delay:.2s }
+    .typing .dot:nth-child(3){ animation-delay:.4s }
+    @keyframes blink{0%,80%,100%{opacity:.2} 40%{opacity:1}}
+
+    .composer{ border-top:1px solid var(--border); background: color-mix(in oklab, var(--panel) 92%, transparent); padding: .75rem; }
+    .composer .row{ display:flex; gap:.6rem; }
+    textarea{
+      flex:1; resize:none; max-height: 35vh; min-height: 46px; padding:.75rem .9rem; border-radius: 12px; background: var(--panel); color: var(--text); border:1px solid var(--border);
+    }
+    textarea::placeholder{ color:var(--muted); }
+    .hint{ font-size:.8rem; color:var(--muted); margin-top:.25rem; display:flex; justify-content:space-between; align-items:center; }
+    .hint .links{ display:flex; gap:.5rem; }
+    .link{ color: var(--assistant); text-decoration: none; border-bottom:1px dashed color-mix(in oklab, var(--assistant) 60%, transparent) }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">💬 Chat đơn giản</div>
+      <div class="spacer"></div>
+      <div class="webhook-wrap">
+        <div class="webhook"><input id="webhook" type="url" placeholder="Dán URL webhook n8n ở đây rồi bấm Lưu" /></div>
+        <button class="btn" id="saveWebhook">Lưu</button>
+        <button class="btn secondary" id="clearChat" title="Xóa hội thoại hiện tại">Xóa</button>
+      </div>
+    </header>
+
+    <main id="messages" class="messages" role="log" aria-live="polite" aria-relevant="additions text">
+      <div class="empty" id="empty">
+        <p><strong>Xin chào!</strong> Hãy nhập tin nhắn của bạn ở bên dưới. (Enter để gửi, Shift+Enter để xuống dòng)</p>
+      </div>
+    </main>
+
+    <footer class="composer">
+      <div class="row">
+        <textarea id="input" placeholder="Nhập tin nhắn… (Enter để gửi, Shift+Enter để xuống dòng)"></textarea>
+        <button class="btn" id="send">Gửi</button>
+      </div>
+      <div class="hint">
+        <span>Payload: { message: "tin nhắn mới", history: [...] }</span>
+        <span class="links">
+          <a class="link" href="#" id="examplePayload">Xem payload mẫu</a>
+        </span>
+      </div>
+    </footer>
+  </div>
+
+  <script>
+    /*
+     * CẤU TRÚC PAYLOAD GỬI TỚI N8N:
+     * {
+     *   "message": "tin nhắn người dùng vừa gửi",
+     *   "history": [
+     *     { "role": "user", "content": "...", "ts": "..." },
+     *     { "role": "assistant", "content": "...", "ts": "..." }
+     *   ]
+     * }
+     * 
+     * TRONG N8N:
+     * - Tin nhắn mới: {{ $json.body.message }}
+     * - Lịch sử chat: {{ $json.body.history }}
+     * 
+     * RESPONSE TỪ N8N (chọn 1 trong 3):
+     * 1. Text thuần: "câu trả lời"
+     * 2. JSON: { "message": "câu trả lời" }
+     * 3. JSON: { "answer": "câu trả lời" }
+     */
+
+    const STORAGE = {
+      webhook: 'n8n:webhook:url',
+      messages: 'n8n:chat:messages'
+    };
+
+    const $input = document.getElementById('input');
+    const $send = document.getElementById('send');
+    const $messages = document.getElementById('messages');
+    const $empty = document.getElementById('empty');
+    const $webhook = document.getElementById('webhook');
+    const $saveWebhook = document.getElementById('saveWebhook');
+    const $clearChat = document.getElementById('clearChat');
+
+    const state = {
+      webhook: localStorage.getItem(STORAGE.webhook) || '',
+      messages: []
+    };
+
+    // Init
+    $webhook.value = state.webhook;
+    try {
+      const saved = JSON.parse(localStorage.getItem(STORAGE.messages) || '[]');
+      if (Array.isArray(saved)) {
+        state.messages = saved;
+        for (const m of state.messages) {
+          renderMessage(m);
+        }
+        if (state.messages.length) $empty.remove();
+        scrollToBottom();
+      }
+    } catch (e) {}
+
+    // Autosize textarea
+    const autosize = () => {
+      $input.style.height = 'auto';
+      $input.style.height = Math.min($input.scrollHeight, window.innerHeight * 0.35) + 'px';
+    };
+    $input.addEventListener('input', autosize);
+    autosize();
+
+    // Shortcuts
+    $input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+      }
+    });
+
+    $send.addEventListener('click', sendMessage);
+
+    $saveWebhook.addEventListener('click', () => {
+      state.webhook = $webhook.value.trim();
+      localStorage.setItem(STORAGE.webhook, state.webhook);
+      toast('Đã lưu webhook.');
+    });
+
+    $clearChat.addEventListener('click', () => {
+      if (!confirm('Xóa toàn bộ hội thoại hiện tại?')) return;
+      state.messages = [];
+      localStorage.removeItem(STORAGE.messages);
+      $messages.innerHTML = '<div class="empty" id="empty"><p><strong>Đã xóa.</strong> Bắt đầu cuộc trò chuyện mới!</p></div>';
+      toast('Đã xóa hội thoại.');
+    });
+
+    document.getElementById('examplePayload').addEventListener('click', (e) => {
+      e.preventDefault();
+      const example = {
+        message: 'Luật hôn nhân gia đình có hiệu lực từ năm nào?',
+        history: [
+          { role: 'user', content: 'Xin chào', ts: '2025-11-04T10:00:00Z' },
+          { role: 'assistant', content: 'Xin chào! Tôi có thể giúp gì cho bạn?', ts: '2025-11-04T10:00:05Z' }
+        ]
+      };
+      alert('Payload gửi tới webhook:\n\n' + JSON.stringify(example, null, 2) + '\n\nTrong n8n, lấy tin nhắn mới bằng:\n{{ $json.body.message }}');
+    });
+
+    function toast(text){
+      const t = document.createElement('div');
+      t.textContent = text;
+      Object.assign(t.style, { position:'fixed', left:'50%', bottom:'20px', transform:'translateX(-50%)',
+        background:'var(--panel)', color:'var(--text)', padding:'10px 14px', border:'1px solid var(--border)', borderRadius:'12px', boxShadow:'var(--shadow)', zIndex:100 });
+      document.body.appendChild(t);
+      setTimeout(() => t.remove(), 1800);
+    }
+
+    function scrollToBottom(){ $messages.scrollTop = $messages.scrollHeight; }
+
+    function now(){ return new Date().toISOString(); }
+    function fmt(ts){ try{ const d = new Date(ts); return d.toLocaleString('vi-VN'); }catch{ return ts; } }
+
+    function renderMessage(m){
+      const wrap = document.createElement('div');
+      wrap.className = `msg ${m.role}`;
+
+      const avatar = document.createElement('div');
+      avatar.className = `avatar ${m.role}`;
+      avatar.textContent = m.role === 'user' ? 'U' : 'A';
+
+      const bubble = document.createElement('div');
+      bubble.className = 'bubble' + (m.error ? ' error' : '');
+      bubble.textContent = m.content;
+
+      const meta = document.createElement('div');
+      meta.className = 'meta';
+      meta.textContent = m.error ? `Lỗi • ${fmt(m.ts)}` : `${m.role === 'user' ? 'Bạn' : 'Trợ lý'} • ${fmt(m.ts)}`;
+
+      const right = document.createElement('div');
+      right.appendChild(bubble);
+      right.appendChild(meta);
+
+      wrap.appendChild(avatar);
+      wrap.appendChild(right);
+
+      $messages.appendChild(wrap);
+    }
+
+    function renderTyping(){
+      const wrap = document.createElement('div');
+      wrap.className = 'msg assistant';
+      wrap.id = 'typing';
+
+      const avatar = document.createElement('div');
+      avatar.className = 'avatar assistant';
+      avatar.textContent = 'A';
+
+      const bubble = document.createElement('div');
+      bubble.className = 'bubble';
+      const typing = document.createElement('div');
+      typing.className = 'typing';
+      typing.innerHTML = '<span class="dot"></span><span class="dot"></span><span class="dot"></span>';
+      bubble.appendChild(typing);
+
+      const meta = document.createElement('div'); meta.className = 'meta'; meta.textContent = 'Đang soạn…';
+
+      const right = document.createElement('div'); right.appendChild(bubble); right.appendChild(meta);
+      wrap.appendChild(avatar); wrap.appendChild(right);
+      $messages.appendChild(wrap); scrollToBottom();
+    }
+
+    function removeTyping(){
+      const el = document.getElementById('typing');
+      if (el) el.remove();
+    }
+
+    function persist(){
+      localStorage.setItem(STORAGE.messages, JSON.stringify(state.messages.slice(-200)));
+    }
+
+    async function sendMessage(){
+      const text = $input.value.trim();
+      if (!text) return;
+      if (!$webhook.value.trim()) {
+        toast('Bạn chưa cấu hình webhook n8n');
+        $webhook.focus();
+        return;
+      }
+
+      $send.disabled = true; $input.disabled = true;
+
+      if ($empty) $empty.remove();
+
+      const userMsg = { id: crypto.randomUUID?.() || String(Math.random()), role:'user', content:text, ts: now() };
+      state.messages.push(userMsg);
+      renderMessage(userMsg);
+      scrollToBottom();
+
+      $input.value = ''; autosize();
+      renderTyping();
+
+      // Chuẩn bị history (10 tin nhắn cuối, KHÔNG bao gồm tin nhắn vừa gửi)
+      const history = state.messages.slice(-11, -1).map(({role, content, ts}) => ({role, content, ts}));
+
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 60000);
+
+      try{
+        const res = await fetch($webhook.value.trim(), {
+          method:'POST',
+          headers: { 'Content-Type':'application/json' },
+          body: JSON.stringify({ 
+            message: text,
+            history: history
+          }),
+          signal: controller.signal
+        });
+        clearTimeout(timeout);
+
+        if (!res.ok){ throw new Error('HTTP ' + res.status + ' ' + res.statusText); }
+
+        let replyText = '';
+        const ct = res.headers.get('content-type') || '';
+        if (ct.includes('application/json')){
+          const data = await res.json();
+          replyText = extractReply(data);
+        } else {
+          replyText = await res.text();
+        }
+        replyText = String(replyText ?? '').trim() || '[Không có nội dung trả lời]';
+
+        removeTyping();
+        const botMsg = { id: crypto.randomUUID?.() || String(Math.random()), role:'assistant', content: replyText, ts: now() };
+        state.messages.push(botMsg);
+        renderMessage(botMsg);
+        scrollToBottom();
+        persist();
+      }catch(err){
+        clearTimeout(timeout);
+        removeTyping();
+        const errMsg = { id: crypto.randomUUID?.() || String(Math.random()), role:'assistant', content: 'Đã xảy ra lỗi: ' + (err?.message || err), ts: now(), error:true };
+        state.messages.push(errMsg);
+        renderMessage(errMsg);
+        scrollToBottom();
+        persist();
+      } finally {
+        $send.disabled = false; $input.disabled = false; $input.focus();
+      }
+    }
+
+    function extractReply(obj){
+      if (!obj) return '';
+      if (typeof obj === 'string') return obj;
+      
+      // Ưu tiên: message > answer > reply
+      if (typeof obj.message === 'string') return obj.message;
+      if (typeof obj.answer === 'string') return obj.answer;
+      if (typeof obj.reply === 'string') return obj.reply;
+      
+      // Kiểm tra trong nested data
+      if (obj.data){
+        if (typeof obj.data === 'string') return obj.data;
+        if (typeof obj.data.message === 'string') return obj.data.message;
+        if (typeof obj.data.answer === 'string') return obj.data.answer;
+        if (typeof obj.data.reply === 'string') return obj.data.reply;
+      }
+      
+      // Xử lý array messages
+      if (Array.isArray(obj.messages)){
+        return obj.messages.map(m => m.content || m.text || '').filter(Boolean).join('\n');
+      }
+      
+      // Fallback
+      try{ return JSON.stringify(obj); }catch{ return String(obj); }
+    }
+
+  </script>
+</body>
+</html>
