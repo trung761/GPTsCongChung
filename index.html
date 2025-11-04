@@ -44,13 +44,6 @@
     }
     .brand{ font-weight: 700; letter-spacing:.2px; }
     .spacer{flex:1}
-    .webhook-wrap{display:flex; gap:.5rem; align-items:center;}
-    .webhook{ width:min(48vw, 520px); max-width: 80vw; min-width: 200px;}
-    .webhook input{
-      width:100%; padding:.6rem .75rem; border-radius: 10px; border:1px solid var(--border); background: var(--panel);
-      color:var(--text); outline:none; box-shadow:none;
-    }
-    .webhook input::placeholder{ color: var(--muted); }
     .btn{ cursor:pointer; border:none; border-radius: 12px; padding:.55rem .85rem; background:var(--assistant); color:white; font-weight:600; box-shadow: var(--shadow);}
     .btn.secondary{ background:transparent; color:var(--text); border:1px solid var(--border); box-shadow:none;}
 
@@ -91,11 +84,7 @@
     <header class="topbar">
       <div class="brand">💬 Chat đơn giản</div>
       <div class="spacer"></div>
-      <div class="webhook-wrap">
-        <div class="webhook"><input id="webhook" type="url" placeholder="Dán URL webhook n8n ở đây rồi bấm Lưu" /></div>
-        <button class="btn" id="saveWebhook">Lưu</button>
-        <button class="btn secondary" id="clearChat" title="Xóa hội thoại hiện tại">Xóa</button>
-      </div>
+      <button class="btn secondary" id="clearChat" title="Xóa hội thoại hiện tại">Xóa</button>
     </header>
 
     <main id="messages" class="messages" role="log" aria-live="polite" aria-relevant="additions text">
@@ -119,28 +108,10 @@
   </div>
 
   <script>
-    /*
-     * CẤU TRÚC PAYLOAD GỬI TỚI N8N:
-     * {
-     *   "message": "tin nhắn người dùng vừa gửi",
-     *   "history": [
-     *     { "role": "user", "content": "...", "ts": "..." },
-     *     { "role": "assistant", "content": "...", "ts": "..." }
-     *   ]
-     * }
-     * 
-     * TRONG N8N:
-     * - Tin nhắn mới: {{ $json.body.message }}
-     * - Lịch sử chat: {{ $json.body.history }}
-     * 
-     * RESPONSE TỪ N8N (chọn 1 trong 3):
-     * 1. Text thuần: "câu trả lời"
-     * 2. JSON: { "message": "câu trả lời" }
-     * 3. JSON: { "answer": "câu trả lời" }
-     */
+    // WEBHOOK URL CỐ ĐỊNH
+    const WEBHOOK_URL = 'https://flowai.onland.vn/webhook/abcdtestapi';
 
     const STORAGE = {
-      webhook: 'n8n:webhook:url',
       messages: 'n8n:chat:messages'
     };
 
@@ -148,17 +119,13 @@
     const $send = document.getElementById('send');
     const $messages = document.getElementById('messages');
     const $empty = document.getElementById('empty');
-    const $webhook = document.getElementById('webhook');
-    const $saveWebhook = document.getElementById('saveWebhook');
     const $clearChat = document.getElementById('clearChat');
 
     const state = {
-      webhook: localStorage.getItem(STORAGE.webhook) || '',
       messages: []
     };
 
     // Init
-    $webhook.value = state.webhook;
     try {
       const saved = JSON.parse(localStorage.getItem(STORAGE.messages) || '[]');
       if (Array.isArray(saved)) {
@@ -188,12 +155,6 @@
     });
 
     $send.addEventListener('click', sendMessage);
-
-    $saveWebhook.addEventListener('click', () => {
-      state.webhook = $webhook.value.trim();
-      localStorage.setItem(STORAGE.webhook, state.webhook);
-      toast('Đã lưu webhook.');
-    });
 
     $clearChat.addEventListener('click', () => {
       if (!confirm('Xóa toàn bộ hội thoại hiện tại?')) return;
@@ -290,11 +251,6 @@
     async function sendMessage(){
       const text = $input.value.trim();
       if (!text) return;
-      if (!$webhook.value.trim()) {
-        toast('Bạn chưa cấu hình webhook n8n');
-        $webhook.focus();
-        return;
-      }
 
       $send.disabled = true; $input.disabled = true;
 
@@ -315,7 +271,7 @@
       const timeout = setTimeout(() => controller.abort(), 60000);
 
       try{
-        const res = await fetch($webhook.value.trim(), {
+        const res = await fetch(WEBHOOK_URL, {
           method:'POST',
           headers: { 'Content-Type':'application/json' },
           body: JSON.stringify({ 
