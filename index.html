@@ -3,25 +3,25 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Chat tư vấn & tạo hợp đồng • n8n webhook</title>
-  <meta name="description" content="Giao diện chat gửi tin nhắn tới n8n và đính kèm hồ sơ giao dịch (Loại giao dịch, Bên A/B, tài sản, ảnh tài sản) để tư vấn & tạo hợp đồng." />
+  <title>Chat tư vấn & tạo hợp đồng • n8n webhook (lite)</title>
+  <meta name="description" content="Giao diện chat gửi tin nhắn tới n8n, chọn loại giao dịch và đính kèm ảnh giấy tờ ngay dưới khung chat." />
   <style>
     :root{
-      --bg:#f7f7f8; --panel:#ffffff; --text:#1f2328; --muted:#6b7280; --border:#e5e7eb;
-      --user:#10b981; --assistant:#2563eb; --error:#ef4444; --radius:16px; --shadow:0 6px 24px rgba(0,0,0,.06);
-      --accent:#111827;
+      --bg:#0b0e14; --panel:#0f131a; --text:#e5e7eb; --muted:#9ca3af; --border:#1f2937;
+      --user:#34d399; --assistant:#60a5fa; --error:#f87171; --radius:16px; --shadow:0 6px 24px rgba(0,0,0,.3);
     }
-    @media (prefers-color-scheme: dark){
+    @media (prefers-color-scheme: light){
       :root{
-        --bg:#0b0e14; --panel:#0f131a; --text:#e5e7eb; --muted:#9ca3af; --border:#1f2937;
-        --user:#34d399; --assistant:#60a5fa; --error:#f87171; --shadow:0 6px 24px rgba(0,0,0,.3);
-        --accent:#e5e7eb;
+        --bg:#f7f7f8; --panel:#ffffff; --text:#1f2328; --muted:#6b7280; --border:#e5e7eb;
+        --user:#10b981; --assistant:#2563eb; --error:#ef4444; --shadow:0 6px 24px rgba(0,0,0,.06);
       }
     }
+
     html, body {height:100%}
     body{ margin:0; background:var(--bg); color:var(--text); font:16px/1.5 system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";}
     .app{display:grid; grid-template-rows:auto 1fr auto; height:100%;}
 
+    /* Topbar */
     .topbar{
       position:sticky; top:0; z-index:10; display:flex; gap:.75rem; align-items:center;
       padding:.6rem .9rem; border-bottom:1px solid var(--border);
@@ -34,12 +34,13 @@
     .btn.secondary{ background:transparent; color:var(--text); border:1px solid var(--border); box-shadow:none;}
     .btn.ghost{ background:transparent; color:var(--assistant); border:1px dashed color-mix(in oklab, var(--assistant) 50%, transparent); }
 
-    .select, .input, .textarea, .date, .number{
+    .select, .input{
       border:1px solid var(--border); background:var(--panel); color:var(--text);
       border-radius:12px; padding:.55rem .7rem; font:inherit;
     }
     .select{ padding-right:2rem }
 
+    /* Messages */
     .messages{ overflow:auto; padding: 1rem; scroll-behavior:smooth; }
     .empty{ opacity:.7; text-align:center; margin-top: 12vh; }
 
@@ -52,61 +53,55 @@
     .msg.user .bubble{ border-left:4px solid var(--user); }
     .msg.assistant .bubble{ border-left:4px solid var(--assistant); }
     .bubble.error{ border-left-color: var(--error); outline:1px dashed color-mix(in oklab, var(--error) 60%, var(--border)); }
+
     .typing{ display:inline-grid; grid-auto-flow:column; gap:.25rem; align-items:center; }
     .typing .dot{ width:8px; height:8px; border-radius:50%; background: var(--muted); opacity:.6; animation: blink 1.4s infinite; }
     .typing .dot:nth-child(2){ animation-delay:.2s } .typing .dot:nth-child(3){ animation-delay:.4s }
     @keyframes blink{0%,80%,100%{opacity:.2} 40%{opacity:1}}
 
-    .composer{ border-top:1px solid var(--border); background: color-mix(in oklab, var(--panel) 92%, transparent); padding:.75rem; }
-    .composer .row{ display:flex; gap:.6rem; }
-    textarea#input{ flex:1; resize:none; max-height:35vh; min-height:46px; padding:.75rem .9rem; border-radius:12px; background:var(--panel); color:var(--text); border:1px solid var(--border); }
+    /* Composer */
+    .composer{ border-top:1px solid var(--border); background: color-mix(in oklab, var(--panel) 92%, transparent); }
+    .composer .wrap{ padding:.75rem .75rem .5rem; display:grid; gap:.5rem; }
+    .compose-row{ display:grid; grid-template-columns:1fr auto auto; gap:.6rem; align-items:end; }
+    textarea#input{ width:100%; resize:none; max-height:30vh; min-height:46px; padding:.75rem .9rem; border-radius:12px; background:var(--panel); color:var(--text); border:1px solid var(--border); }
     textarea::placeholder{ color:var(--muted); }
-    .hint{ font-size:.8rem; color:var(--muted); margin-top:.25rem; display:flex; justify-content:space-between; align-items:center; }
-    .hint .links{ display:flex; gap:.5rem; }
-    .link{ color: var(--assistant); text-decoration:none; border-bottom:1px dashed color-mix(in oklab, var(--assistant) 60%, transparent) }
 
-    /* Drawer (Hồ sơ) */
-    .drawer{ position:fixed; inset:0; display:none; }
-    .drawer.open{ display:block; }
-    .drawer .backdrop{ position:absolute; inset:0; background:rgba(0,0,0,.35); }
-    .drawer .panel{
-      position:absolute; right:0; top:0; bottom:0; width:min(720px, 100%); background:var(--panel); color:var(--text);
-      border-left:1px solid var(--border); box-shadow:var(--shadow); display:grid; grid-template-rows:auto 1fr auto;
-      animation: slideIn .25s ease;
+    .hint{ font-size:.8rem; color:var(--muted); display:flex; justify-content:space-between; align-items:center; gap:.5rem; padding:0 .15rem .35rem; }
+
+    /* Thumb bar under chat */
+    .thumbbar{
+      border-top:1px dashed var(--border);
+      padding:.55rem .2rem .65rem;
+      display:grid; gap:.4rem;
     }
-    @keyframes slideIn{ from{ transform:translateX(8px); opacity:.8 } to{ transform:translateX(0); opacity:1 } }
-    .panel .header{ padding:.8rem .9rem; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:.6rem;}
-    .panel .title{ font-weight:700 }
-    .panel .content{ overflow:auto; padding:1rem .9rem }
-    .grid{ display:grid; gap:.75rem }
-    .cols-2{ grid-template-columns:1fr 1fr }
-    .fieldset{ border:1px dashed var(--border); border-radius:14px; padding:.8rem; }
-    .legend{ font-weight:700; margin-bottom:.25rem }
-    .field{ display:grid; gap:.25rem }
-    .field.inline{ grid-template-columns:minmax(120px, 1fr) 2fr; align-items:center }
-    .row{ display:grid; grid-template-columns:1fr 1fr; gap:.6rem }
-    .help{ font-size:.8rem; color:var(--muted) }
-    .tag{ display:inline-flex; align-items:center; gap:.4rem; padding:.3rem .55rem; border-radius:999px; border:1px solid var(--border); background:color-mix(in oklab, var(--panel) 90%, transparent); }
-    .footer{ border-top:1px solid var(--border); padding:.7rem .9rem; display:flex; gap:.6rem; justify-content:flex-end }
+    .thumbs{
+      display:grid; grid-auto-flow:column; grid-auto-columns:120px; gap:.55rem;
+      overflow-x:auto; padding:.15rem .5rem;
+    }
+    .thumb{
+      position:relative; border:1px solid var(--border); border-radius:12px; overflow:hidden; background:var(--panel); box-shadow:var(--shadow);
+      height:100px;
+    }
+    .thumb img{ width:100%; height:100%; object-fit:cover; display:block; }
+    .thumb .close{
+      position:absolute; top:6px; right:6px; cursor:pointer;
+      background:rgba(0,0,0,.55); border:1px solid rgba(255,255,255,.25); color:#fff; padding:.15rem .35rem; border-radius:8px; font-size:.75rem;
+    }
+    .thumb-meta{ position:absolute; left:6px; bottom:6px; font-size:.72rem; padding:.1rem .35rem; border-radius:6px; border:1px solid var(--border);
+                 background:color-mix(in oklab, var(--panel) 92%, transparent); color:var(--muted); }
 
-    /* Gallery */
-    .gallery{ display:grid; grid-template-columns:repeat(auto-fill, minmax(120px,1fr)); gap:.6rem; }
-    .card{ border:1px solid var(--border); border-radius:12px; overflow:hidden; background:var(--panel); box-shadow:var(--shadow); display:grid; grid-template-rows:auto auto 1fr auto; }
-    .card img{ display:block; width:100%; height:100px; object-fit:cover; background:#000; }
-    .card .cap{ padding:.4rem .5rem; border-top:1px solid var(--border) }
-    .card .cap input{ width:100%; }
-    .actions{ display:flex; justify-content:space-between; align-items:center; gap:.4rem; padding:.45rem .5rem; border-top:1px solid var(--border) }
-    .chip{ font-size:.75rem; padding:.1rem .4rem; border-radius:999px; border:1px solid var(--border); color:var(--muted) }
+    .thumbbar .actions{ display:flex; justify-content:space-between; align-items:center; padding:0 .35rem; }
+    .link{ color: var(--assistant); text-decoration:none; border-bottom:1px dashed color-mix(in oklab, var(--assistant) 60%, transparent) }
   </style>
 </head>
 <body>
   <div class="app">
+    <!-- Topbar -->
     <header class="topbar">
       <div class="brand">💬 Chat tư vấn luật</div>
 
-      <!-- Loại giao dịch -->
-      <label class="field inline" style="max-width:380px; margin-left:.5rem;">
-        <span class="help">Loại giao dịch</span>
+      <label class="field" style="max-width:380px; margin-left:.5rem; display:grid; gap:.25rem;">
+        <span class="help" style="font-size:.82rem; color:var(--muted)">Loại giao dịch</span>
         <select id="txnType" class="select">
           <option value="">— Chọn —</option>
           <option value="mua_ban">Mua bán / Chuyển nhượng</option>
@@ -120,248 +115,82 @@
         </select>
       </label>
 
-      <button class="btn ghost" id="openProfile" title="Mở form Hồ sơ giao dịch">Hồ sơ giao dịch</button>
       <div class="spacer"></div>
       <button class="btn secondary" id="clearChat" title="Xóa hội thoại hiện tại">Xóa</button>
     </header>
 
+    <!-- Messages -->
     <main id="messages" class="messages" role="log" aria-live="polite" aria-relevant="additions text">
       <div class="empty" id="empty">
-        <p><strong>Xin chào!</strong> Hãy nhập câu hỏi của bạn.</p>
-        <p>Hệ thống gửi đồng thời tới 2 webhook: <span class="tag">📋 Tư vấn luật</span> và <span class="tag">📄 Tạo hợp đồng</span>.</p>
-        <p class="help">Mẹo: chọn <em>Loại giao dịch</em> và mở <strong>Hồ sơ</strong> để điền Bên A/B, tài sản, ảnh… Hợp đồng sẽ tự điền các dữ liệu đó.</p>
+        <p><strong>Xin chào!</strong> Hãy chọn <em>Loại giao dịch</em>, thêm ảnh giấy tờ bằng nút <strong>📎 Ảnh giấy tờ</strong> bên dưới, rồi nhập câu hỏi/đề nghị soạn hợp đồng.</p>
+        <p>Hệ thống sẽ gửi đồng thời tới 2 webhook: <span class="help">📋 Tư vấn luật</span> và <span class="help">📄 Tạo hợp đồng</span>.</p>
       </div>
     </main>
 
+    <!-- Composer + Thumbbar -->
     <footer class="composer">
-      <div class="row" style="display:flex; gap:.6rem;">
-        <textarea id="input" placeholder="Nhập tin nhắn… (Enter để gửi, Shift+Enter để xuống dòng)"></textarea>
-        <button class="btn" id="send">Gửi</button>
-      </div>
-      <div class="hint">
-        <span>Gửi đồng thời tới 2 APIs: Tư vấn luật & Tạo hợp đồng</span>
-        <span class="links">
+      <div class="wrap">
+        <div class="compose-row">
+          <textarea id="input" placeholder="Nhập tin nhắn… (Enter để gửi, Shift+Enter để xuống dòng)"></textarea>
+          <button class="btn secondary" id="pickPhotos" title="Chọn hoặc chụp ảnh giấy tờ">📎 Ảnh giấy tờ</button>
+          <button class="btn" id="send">Gửi</button>
+          <input id="photoInput" type="file" accept="image/*" capture="environment" multiple style="display:none" />
+        </div>
+        <div class="hint">
+          <span>Payload gồm: <code>transaction_type</code> + <code>photos[]</code> (đã nén & xoá EXIF).</span>
           <a class="link" href="#" id="examplePayload">Xem payload mẫu</a>
-          <a class="link" href="#" id="copyProfile">Copy hồ sơ JSON</a>
-        </span>
+        </div>
+        <div class="thumbbar" id="thumbbar" style="display:none;">
+          <div class="thumbs" id="thumbs"></div>
+          <div class="actions">
+            <span id="thumbStat" class="help">0 ảnh</span>
+            <a href="#" id="clearPhotos" class="link">Xoá tất cả ảnh</a>
+          </div>
+        </div>
       </div>
     </footer>
   </div>
 
-  <!-- Drawer: Hồ sơ giao dịch -->
-  <div class="drawer" id="drawer" aria-hidden="true">
-    <div class="backdrop" id="closeDrawer"></div>
-    <section class="panel" role="dialog" aria-modal="true" aria-labelledby="drawerTitle">
-      <div class="header">
-        <div class="title" id="drawerTitle">🗂️ Hồ sơ giao dịch</div>
-        <span class="tag" id="tagTxn">Chưa chọn loại giao dịch</span>
-        <div class="spacer"></div>
-        <button class="btn secondary" id="closeDrawerBtn">Đóng</button>
-      </div>
-
-      <div class="content grid" style="gap:1rem;">
-        <div class="fieldset">
-          <div class="legend">1) Thông tin chung</div>
-          <div class="grid cols-2">
-            <label class="field">
-              <span class="help">Loại giao dịch</span>
-              <select id="f_txnType" class="select"></select>
-            </label>
-            <label class="field">
-              <span class="help">Mục đích/ghi chú (tuỳ chọn)</span>
-              <input id="f_note" class="input" placeholder="VD: chuyển nhượng QSDĐ, vay tiêu dùng…" />
-            </label>
-          </div>
-        </div>
-
-        <div class="fieldset">
-          <div class="legend">2) Bên A</div>
-          <div class="grid cols-2">
-            <label class="field"><span class="help">Họ tên</span><input id="A_name" class="input" /></label>
-            <label class="field"><span class="help">CCCD/CMND</span><input id="A_id" class="input" /></label>
-            <label class="field"><span class="help">Ngày cấp</span><input id="A_id_date" type="date" class="input date" /></label>
-            <label class="field"><span class="help">Nơi cấp</span><input id="A_id_place" class="input" /></label>
-            <label class="field" style="grid-column:1/-1;"><span class="help">Địa chỉ</span><input id="A_addr" class="input" /></label>
-            <label class="field"><span class="help">Tình trạng hôn nhân</span>
-              <select id="A_marital" class="select">
-                <option value="">— Chọn —</option>
-                <option>Độc thân</option><option>Đã kết hôn</option><option>Ly hôn</option>
-              </select>
-            </label>
-            <label class="field"><span class="help">Điện thoại (tuỳ chọn)</span><input id="A_phone" class="input" /></label>
-          </div>
-        </div>
-
-        <div class="fieldset">
-          <div class="legend">3) Bên B</div>
-          <div class="grid cols-2">
-            <label class="field"><span class="help">Họ tên</span><input id="B_name" class="input" /></label>
-            <label class="field"><span class="help">CCCD/CMND</span><input id="B_id" class="input" /></label>
-            <label class="field"><span class="help">Ngày cấp</span><input id="B_id_date" type="date" class="input date" /></label>
-            <label class="field"><span class="help">Nơi cấp</span><input id="B_id_place" class="input" /></label>
-            <label class="field" style="grid-column:1/-1;"><span class="help">Địa chỉ</span><input id="B_addr" class="input" /></label>
-            <label class="field"><span class="help">Tình trạng hôn nhân</span>
-              <select id="B_marital" class="select">
-                <option value="">— Chọn —</option>
-                <option>Độc thân</option><option>Đã kết hôn</option><option>Ly hôn</option>
-              </select>
-            </label>
-            <label class="field"><span class="help">Điện thoại (tuỳ chọn)</span><input id="B_phone" class="input" /></label>
-          </div>
-        </div>
-
-        <div class="fieldset">
-          <div class="legend">4) Tài sản</div>
-          <div class="grid cols-2">
-            <label class="field">
-              <span class="help">Loại tài sản</span>
-              <select id="asset_type" class="select">
-                <option value="">— Chọn —</option>
-                <option value="dat_nha">Nhà/Đất</option>
-                <option value="o_to">Ô tô</option>
-                <option value="xe_may">Xe máy</option>
-                <option value="khac">Khác</option>
-              </select>
-            </label>
-            <label class="field"><span class="help">Mô tả tóm tắt</span><input id="asset_desc" class="input" placeholder="VD: thửa đất số…, diện tích…, xe ô tô biển số…" /></label>
-
-            <label class="field"><span class="help">Số giấy tờ/Định danh</span><input id="asset_id" class="input" placeholder="Sổ đỏ/Số khung/Số máy/Seri…" /></label>
-            <label class="field"><span class="help">Giá trị ước tính (VND)</span><input id="asset_value" class="input" inputmode="numeric" placeholder="VD: 1.200.000.000" /></label>
-          </div>
-        </div>
-
-        <!-- Nhánh MUA BÁN -->
-        <div class="fieldset" data-branch="mua_ban">
-          <div class="legend">5) Thông tin giao dịch MUA BÁN / CHUYỂN NHƯỢNG</div>
-          <div class="grid cols-2">
-            <label class="field"><span class="help">Giá chuyển nhượng (VND)</span><input id="sale_price" class="input" inputmode="numeric" /></label>
-            <label class="field"><span class="help">Tiền đặt cọc (VND, nếu có)</span><input id="sale_deposit" class="input" inputmode="numeric" /></label>
-            <label class="field"><span class="help">Ngày bàn giao dự kiến</span><input id="sale_delivery_date" type="date" class="input date" /></label>
-            <label class="field"><span class="help">Thuế & phí do bên nào chịu?</span>
-              <select id="sale_fees" class="select">
-                <option value="">— Chọn —</option>
-                <option value="benA">Bên A</option>
-                <option value="benB">Bên B</option>
-                <option value="hai_ben">Hai bên thoả thuận</option>
-              </select>
-            </label>
-          </div>
-        </div>
-
-        <!-- Nhánh VAY/THẾ CHẤP -->
-        <div class="fieldset" data-branch="vay the_chap">
-          <div class="legend">5) Thông tin VAY &amp; THẾ CHẤP/CẦM CỐ</div>
-          <div class="grid cols-2">
-            <label class="field"><span class="help">Số tiền vay (VND)</span><input id="loan_amount" class="input" inputmode="numeric" /></label>
-            <label class="field"><span class="help">Lãi suất (%/năm)</span><input id="loan_rate" class="input" inputmode="decimal" placeholder="VD: 9.5" /></label>
-            <label class="field"><span class="help">Thời hạn (tháng)</span><input id="loan_term" class="input" inputmode="numeric" placeholder="VD: 24" /></label>
-            <label class="field"><span class="help">Phương thức trả nợ</span>
-              <select id="loan_method" class="select">
-                <option value="">— Chọn —</option>
-                <option>Gốc đều, lãi giảm dần</option>
-                <option>Trả lãi hàng tháng, gốc cuối kỳ</option>
-                <option>Khác</option>
-              </select>
-            </label>
-            <label class="field"><span class="help">Đăng ký biện pháp bảo đảm?</span>
-              <select id="loan_register" class="select">
-                <option value="">— Chọn —</option>
-                <option value="co">Có</option>
-                <option value="khong">Không</option>
-              </select>
-            </label>
-          </div>
-        </div>
-
-        <!-- Ảnh tài sản -->
-        <div class="fieldset">
-          <div class="legend">6) Ảnh tài sản (Phụ lục ảnh)</div>
-          <div class="grid">
-            <div class="row" style="grid-template-columns:1fr auto; gap:.6rem;">
-              <input id="photoInput" type="file" class="input" accept="image/*" capture="environment" multiple />
-              <button class="btn secondary" id="clearPhotos" type="button">Xoá tất cả ảnh</button>
-            </div>
-            <div class="help">Chọn nhiều ảnh hoặc chụp trực tiếp. Ảnh sẽ được nén về tối đa 1600px và loại EXIF trước khi gửi để bảo mật.</div>
-            <div id="gallery" class="gallery"></div>
-          </div>
-        </div>
-
-      </div>
-      <div class="footer">
-        <button class="btn secondary" id="saveProfile">Lưu</button>
-        <button class="btn" id="closeAndSave">Lưu & Đóng</button>
-      </div>
-    </section>
-  </div>
-
   <script>
     // ================== CONFIG ==================
-    // 2 WEBHOOK URLs
     const WEBHOOK_URLS = {
-      tuvan: 'https://flowai.onland.vn/webhook/luongtuvan',
-      hopdong: 'https://flowai.onland.vn/webhook/luongtaohopdong'
+      tuvan: 'https://demo.vnlawai.com/webhook/luongtuvan',
+      hopdong: 'https://demo.vnlawai.com/webhook/luongtaohopdong'
     };
-    const SCHEMA_VERSION = 'lawchat-v2'; // tăng version khi đổi cấu trúc
+    const SCHEMA_VERSION = 'lawchat-lite-v2';
 
     const STORAGE = {
       messages: 'n8n:chat:messages',
-      profile:  'n8n:chat:profile'
+      data:     'n8n:chat:lite-v2'
     };
 
-    // ================== DOM GETTERS ==================
+    // ================== DOM ==================
     const $input = document.getElementById('input');
     const $send = document.getElementById('send');
     const $messages = document.getElementById('messages');
     const $empty = document.getElementById('empty');
     const $clearChat = document.getElementById('clearChat');
+    const $txnType = document.getElementById('txnType');
 
-    const $txnTypeTop = document.getElementById('txnType');
-    const $openProfile = document.getElementById('openProfile');
-
-    // Drawer elements
-    const $drawer = document.getElementById('drawer');
-    const $closeDrawer = document.getElementById('closeDrawer');
-    const $closeDrawerBtn = document.getElementById('closeDrawerBtn');
-    const $tagTxn = document.getElementById('tagTxn');
-
-    // Form fields mapping
-    const fields = {
-      txnType: document.getElementById('f_txnType'), note: document.getElementById('f_note'),
-      A_name: 'A_name', A_id:'A_id', A_id_date:'A_id_date', A_id_place:'A_id_place', A_addr:'A_addr', A_marital:'A_marital', A_phone:'A_phone',
-      B_name: 'B_name', B_id:'B_id', B_id_date:'B_id_date', B_id_place:'B_id_place', B_addr:'B_addr', B_marital:'B_marital', B_phone:'B_phone',
-      asset_type:'asset_type', asset_desc:'asset_desc', asset_id:'asset_id', asset_value:'asset_value',
-      sale_price:'sale_price', sale_deposit:'sale_deposit', sale_delivery_date:'sale_delivery_date', sale_fees:'sale_fees',
-      loan_amount:'loan_amount', loan_rate:'loan_rate', loan_term:'loan_term', loan_method:'loan_method', loan_register:'loan_register'
-    };
-    Object.keys(fields).forEach(k => { if(typeof fields[k]==='string') fields[k] = document.getElementById(fields[k]); });
-
+    const $pickPhotos = document.getElementById('pickPhotos');
     const $photoInput = document.getElementById('photoInput');
-    const $gallery = document.getElementById('gallery');
+    const $thumbbar = document.getElementById('thumbbar');
+    const $thumbs = document.getElementById('thumbs');
+    const $thumbStat = document.getElementById('thumbStat');
     const $clearPhotos = document.getElementById('clearPhotos');
-    const $saveProfile = document.getElementById('saveProfile');
-    const $closeAndSave = document.getElementById('closeAndSave');
-
     const $examplePayload = document.getElementById('examplePayload');
-    const $copyProfile = document.getElementById('copyProfile');
 
-    // ================== APP STATE ==================
+    // ================== STATE ==================
     const state = {
       messages: [],
-      profile: {
+      data: {
         schema_version: SCHEMA_VERSION,
         transaction_type: '',
-        note: '',
-        partyA: { name:'', id:'', id_date:'', id_place:'', address:'', marital:'', phone:'' },
-        partyB: { name:'', id:'', id_date:'', id_place:'', address:'', marital:'', phone:'' },
-        asset: { type:'', desc:'', id:'', value:'' },
-        sale: { price:'', deposit:'', delivery_date:'', fees:'' },
-        loan: { amount:'', rate:'', term:'', method:'', register:'' },
-        photos: [] // {id, name, type, size, dataUrl, caption}
+        photos: [] // {id, name, type, size, dataUrl}
       }
     };
 
     // ================== INIT ==================
-    // restore messages
     try {
       const saved = JSON.parse(localStorage.getItem(STORAGE.messages) || '[]');
       if (Array.isArray(saved)) {
@@ -372,90 +201,58 @@
       }
     } catch {}
 
-    // restore profile
     try {
-      const prof = JSON.parse(localStorage.getItem(STORAGE.profile) || 'null');
-      if (prof && prof.schema_version) {
-        state.profile = prof;
-      }
+      const savedData = JSON.parse(localStorage.getItem(STORAGE.data) || 'null');
+      if (savedData && savedData.schema_version) state.data = savedData;
     } catch {}
-    syncFormFromState(); // fill form & top select
+    $txnType.value = state.data.transaction_type || '';
+    renderThumbs();
     autosize();
 
     // ================== EVENTS ==================
-    // Autosize textarea
-    function autosize(){ $input.style.height='auto'; $input.style.height=Math.min($input.scrollHeight, window.innerHeight*0.35)+'px'; }
+    function autosize(){ $input.style.height='auto'; $input.style.height=Math.min($input.scrollHeight, window.innerHeight*0.30)+'px'; }
     $input.addEventListener('input', autosize);
-
-    // Shortcuts
-    $input.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
-    });
-
+    $input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }});
     $send.addEventListener('click', sendMessage);
 
+    $txnType.addEventListener('change', () => { state.data.transaction_type = $txnType.value; persistData(); });
+
     $clearChat.addEventListener('click', () => {
-      if (!confirm('Xóa toàn bộ hội thoại & hồ sơ hiện tại?')) return;
+      if (!confirm('Xóa toàn bộ hội thoại hiện tại?')) return;
       state.messages = [];
       localStorage.removeItem(STORAGE.messages);
       $messages.innerHTML = '<div class="empty" id="empty"><p><strong>Đã xóa.</strong> Bắt đầu cuộc trò chuyện mới!</p></div>';
       toast('Đã xóa hội thoại.');
     });
 
-    // Drawer open/close
-    $openProfile.addEventListener('click', () => openDrawer(true));
-    $closeDrawer.addEventListener('click', () => openDrawer(false));
-    $closeDrawerBtn.addEventListener('click', () => openDrawer(false));
-    $saveProfile.addEventListener('click', () => { syncStateFromForm(); persistProfile(); toast('Đã lưu hồ sơ.'); });
-    $closeAndSave.addEventListener('click', () => { syncStateFromForm(); persistProfile(); openDrawer(false); toast('Đã lưu & đóng.'); });
+    $pickPhotos.addEventListener('click', () => $photoInput.click());
 
-    // Topbar select mirrors form select
-    $txnTypeTop.addEventListener('change', () => {
-      fields.txnType.value = $txnTypeTop.value;
-      syncStateFromForm(); persistProfile(); updateBranches(); paintTag();
-    });
-
-    fields.txnType.addEventListener('change', () => {
-      $txnTypeTop.value = fields.txnType.value;
-      syncStateFromForm(); persistProfile(); updateBranches(); paintTag();
-    });
-
-    // Photo input
     $photoInput.addEventListener('change', async (e) => {
       const files = Array.from(e.target.files || []);
       if (!files.length) return;
       const limitCount = 24;
-      if (state.profile.photos.length + files.length > limitCount) {
-        toast(`Tối đa ${limitCount} ảnh. Một số ảnh sẽ không được thêm.`);
+      if (state.data.photos.length + files.length > limitCount) toast(`Tối đa ${limitCount} ảnh. Một số ảnh sẽ không được thêm.`);
+      for (const file of files.slice(0, limitCount - state.data.photos.length)) {
+        const item = await readAndCompressImage(file, 1600, 0.75); // remove EXIF via canvas + nén
+        state.data.photos.push(item);
       }
-      for (const file of files.slice(0, limitCount - state.profile.photos.length)) {
-        const item = await readAndCompressImage(file, 1600, 0.75); // remove EXIF via canvas
-        state.profile.photos.push(item);
-      }
-      persistProfile();
-      renderGallery();
-      $photoInput.value = '';
+      persistData(); renderThumbs(); $photoInput.value = '';
     });
 
-    $clearPhotos.addEventListener('click', () => {
-      if (!state.profile.photos.length) return;
-      if (!confirm('Xoá toàn bộ ảnh trong phụ lục?')) return;
-      state.profile.photos = [];
-      persistProfile(); renderGallery();
+    $clearPhotos.addEventListener('click', (e) => {
+      e.preventDefault();
+      if (!state.data.photos.length) return;
+      if (!confirm('Xoá toàn bộ ảnh?')) return;
+      state.data.photos = []; persistData(); renderThumbs();
     });
 
     $examplePayload.addEventListener('click', (e) => {
       e.preventDefault();
-      const example = buildPayload('[Ví dụ] Luật hôn nhân gia đình có hiệu lực từ năm nào?');
-      alert('Payload mẫu gửi tới 2 webhooks:\n\n' + JSON.stringify(example, null, 2) + '\n\nTrong n8n, lấy tin nhắn mới bằng:\n{{ $json.body.message }}\n\nLink hiện tại:\n{{ $json.body.link }}\n\nHồ sơ giao dịch:\n{{ $json.body.profile | json }}');
+      const example = buildPayload('[Ví dụ] Soạn hợp đồng uỷ quyền nhà đất');
+      alert('Payload mẫu:\n\n' + JSON.stringify(example, null, 2) + '\n\nTrong n8n: \n- Loại GD: {{$json.body.profile.transaction_type}}\n- Ảnh: {{$json.body.profile.photos}}');
     });
 
-    $copyProfile.addEventListener('click', (e) => {
-      e.preventDefault();
-      navigator.clipboard.writeText(JSON.stringify(state.profile, null, 2)).then(()=>toast('Đã copy hồ sơ JSON'));
-    });
-
-    // ============== UI HELPERS ==============
+    // ================== HELPERS ==================
     function toast(text){
       const t = document.createElement('div');
       t.textContent = text;
@@ -471,9 +268,8 @@
       const wrap = document.createElement('div'); wrap.className = `msg ${m.role}`;
       const avatar = document.createElement('div'); avatar.className = `avatar ${m.role}`; avatar.textContent = m.role === 'user' ? 'U' : 'A';
       const bubble = document.createElement('div'); bubble.className = 'bubble' + (m.error ? ' error' : '');
-      // show a compact tag if message was sent with profile
-      const hasProfile = m.meta?.hasProfile;
-      bubble.textContent = m.content + (hasProfile ? '\n\n—\n(Đã gửi kèm hồ sơ giao dịch)' : '');
+      const hasPhotos = m.meta?.hasPhotos;
+      bubble.textContent = m.content + (hasPhotos ? '\n\n—\n(Đã gửi kèm ảnh giấy tờ)' : '');
       const meta = document.createElement('div'); meta.className='meta'; meta.textContent = m.error ? `Lỗi • ${fmt(m.ts)}` : `${m.role==='user' ? 'Bạn' : 'Trợ lý'} • ${fmt(m.ts)}`;
       const right = document.createElement('div'); right.appendChild(bubble); right.appendChild(meta);
       wrap.appendChild(avatar); wrap.appendChild(right); $messages.appendChild(wrap);
@@ -490,93 +286,23 @@
     }
     function removeTyping(apiType){ document.getElementById(`typing-${apiType}`)?.remove(); }
     function persistMessages(){ localStorage.setItem(STORAGE.messages, JSON.stringify(state.messages.slice(-200))); }
-    function persistProfile(){ localStorage.setItem(STORAGE.profile, JSON.stringify(state.profile)); paintTag(); }
+    function persistData(){ localStorage.setItem(STORAGE.data, JSON.stringify(state.data)); }
 
-    function paintTag(){
-      const map = {
-        '': 'Chưa chọn loại giao dịch',
-        'mua_ban': 'Loại: MUA BÁN/CHUYỂN NHƯỢNG',
-        'dat_coc': 'Loại: ĐẶT CỌC',
-        'vay': 'Loại: VAY',
-        'the_chap': 'Loại: THẾ CHẤP/CẦM CỐ',
-        'cho_thue': 'Loại: CHO THUÊ/CHO MƯỢN',
-        'tang_cho': 'Loại: TẶNG CHO',
-        'uy_quyen': 'Loại: UỶ QUYỀN',
-        'khac': 'Loại: KHÁC'
-      };
-      $tagTxn.textContent = map[state.profile.transaction_type] || 'Loại giao dịch';
-    }
-
-    function openDrawer(open){
-      $drawer.classList.toggle('open', !!open);
-      if (open) { renderGallery(); updateBranches(); }
-    }
-
-    function syncFormFromState(){
-      // fill selects in both places
-      $txnTypeTop.value = state.profile.transaction_type || '';
-      fields.txnType.innerHTML = $txnTypeTop.innerHTML; // clone options
-      fields.txnType.value = state.profile.transaction_type || '';
-      fields.note.value = state.profile.note || '';
-      // A
-      const A = state.profile.partyA, B = state.profile.partyB, as = state.profile.asset, sale = state.profile.sale, loan = state.profile.loan;
-      fields.A_name.value=A.name||''; fields.A_id.value=A.id||''; fields.A_id_date.value=A.id_date||''; fields.A_id_place.value=A.id_place||'';
-      fields.A_addr.value=A.address||''; fields.A_marital.value=A.marital||''; fields.A_phone.value=A.phone||'';
-      // B
-      fields.B_name.value=B.name||''; fields.B_id.value=B.id||''; fields.B_id_date.value=B.id_date||''; fields.B_id_place.value=B.id_place||'';
-      fields.B_addr.value=B.address||''; fields.B_marital.value=B.marital||''; fields.B_phone.value=B.phone||'';
-      // Asset
-      fields.asset_type.value=as.type||''; fields.asset_desc.value=as.desc||''; fields.asset_id.value=as.id||''; fields.asset_value.value=as.value||'';
-      // Sale
-      fields.sale_price.value=sale.price||''; fields.sale_deposit.value=sale.deposit||''; fields.sale_delivery_date.value=sale.delivery_date||''; fields.sale_fees.value=sale.fees||'';
-      // Loan
-      fields.loan_amount.value=loan.amount||''; fields.loan_rate.value=loan.rate||''; fields.loan_term.value=loan.term||''; fields.loan_method.value=loan.method||''; fields.loan_register.value=loan.register||'';
-      paintTag(); updateBranches();
-    }
-
-    function syncStateFromForm(){
-      state.profile.transaction_type = fields.txnType.value || '';
-      state.profile.note = fields.note.value || '';
-      const A = state.profile.partyA, B = state.profile.partyB, as = state.profile.asset, sale = state.profile.sale, loan = state.profile.loan;
-      A.name=fields.A_name.value; A.id=fields.A_id.value; A.id_date=fields.A_id_date.value; A.id_place=fields.A_id_place.value;
-      A.address=fields.A_addr.value; A.marital=fields.A_marital.value; A.phone=fields.A_phone.value;
-      B.name=fields.B_name.value; B.id=fields.B_id.value; B.id_date=fields.B_id_date.value; B.id_place=fields.B_id_place.value;
-      B.address=fields.B_addr.value; B.marital=fields.B_marital.value; B.phone=fields.B_phone.value;
-      as.type=fields.asset_type.value; as.desc=fields.asset_desc.value; as.id=fields.asset_id.value; as.value=fields.asset_value.value;
-      sale.price=fields.sale_price.value; sale.deposit=fields.sale_deposit.value; sale.delivery_date=fields.sale_delivery_date.value; sale.fees=fields.sale_fees.value;
-      loan.amount=fields.loan_amount.value; loan.rate=fields.loan_rate.value; loan.term=fields.loan_term.value; loan.method=fields.loan_method.value; loan.register=fields.loan_register.value;
-    }
-
-    function updateBranches(){
-      const t = (state.profile.transaction_type||'').trim();
-      document.querySelectorAll('[data-branch]').forEach(el => {
-        const keys = el.getAttribute('data-branch').split(/\s+/);
-        el.style.display = keys.includes(t) ? 'block' : 'none';
-      });
-    }
-
-    function renderGallery(){
-      $gallery.innerHTML = '';
-      if (!state.profile.photos.length){
-        const p = document.createElement('p'); p.className='help'; p.textContent='Chưa có ảnh nào.';
-        $gallery.appendChild(p); return;
-      }
-      for (const photo of state.profile.photos){
-        const card = document.createElement('div'); card.className='card'; card.dataset.id = photo.id;
+    function renderThumbs(){
+      $thumbs.innerHTML = '';
+      const n = state.data.photos.length;
+      $thumbbar.style.display = n ? 'block' : 'none';
+      $thumbStat.textContent = n ? `${n} ảnh đã chọn` : '0 ảnh';
+      for (const photo of state.data.photos){
+        const item = document.createElement('div'); item.className='thumb'; item.dataset.id = photo.id;
         const img = document.createElement('img'); img.src = photo.dataUrl;
-        const meta = document.createElement('div'); meta.className='actions';
-        meta.innerHTML = `<span class="chip">${Math.round(photo.size/1024)} KB</span>
-                          <button class="btn secondary" type="button" data-del="${photo.id}">Xoá</button>`;
-        const cap = document.createElement('div'); cap.className='cap';
-        const capInput = document.createElement('input'); capInput.className='input'; capInput.placeholder='Chú thích ảnh (tuỳ chọn)'; capInput.value = photo.caption || '';
-        cap.appendChild(capInput);
-        card.appendChild(img); card.appendChild(meta); card.appendChild(cap);
-        $gallery.appendChild(card);
-
-        capInput.addEventListener('input', () => { photo.caption = capInput.value; persistProfile(); });
-        meta.querySelector('button[data-del]').addEventListener('click', () => {
-          state.profile.photos = state.profile.photos.filter(p => p.id !== photo.id); persistProfile(); renderGallery();
+        const close = document.createElement('button'); close.className='close'; close.type='button'; close.textContent='✕';
+        const meta = document.createElement('span'); meta.className='thumb-meta'; meta.textContent = `${Math.round(photo.size/1024)} KB`;
+        close.addEventListener('click', () => {
+          state.data.photos = state.data.photos.filter(p => p.id !== photo.id); persistData(); renderThumbs();
         });
+        item.appendChild(img); item.appendChild(close); item.appendChild(meta);
+        $thumbs.appendChild(item);
       }
     }
 
@@ -596,7 +322,7 @@
       const ctx = canvas.getContext('2d'); ctx.drawImage(img, 0, 0, width, height);
       const out = canvas.toDataURL(type, quality);
       const size = Math.ceil(atob(out.split(',')[1]).length);
-      return { id, name, type, size, dataUrl: out, caption:'' };
+      return { id, name, type, size, dataUrl: out };
     }
     function fitContain(w, h, max){ if(Math.max(w,h)<=max) return {width:w, height:h}; const r = w>h ? max/w : max/h; return {width:Math.round(w*r), height:Math.round(h*r)}; }
 
@@ -608,12 +334,11 @@
       $send.disabled = true; $input.disabled = true;
       $empty?.remove();
 
-      const hasProfile = Boolean(state.profile.transaction_type || state.profile.partyA.name || state.profile.partyB.name || state.profile.asset.type || state.profile.photos.length);
-      const userMsg = { id: crypto.randomUUID?.() || String(Math.random()), role:'user', content:text, ts: now(), meta: { hasProfile } };
+      const hasPhotos = state.data.photos.length > 0;
+      const userMsg = { id: crypto.randomUUID?.() || String(Math.random()), role:'user', content:text, ts: now(), meta: { hasPhotos } };
       state.messages.push(userMsg); renderMessage(userMsg); scrollToBottom();
       $input.value=''; autosize();
 
-      // typing indicators
       renderTyping('tuvan'); renderTyping('hopdong');
 
       // History (10 tin trước đó, không tính tin hiện tại)
@@ -623,11 +348,10 @@
       const payload = buildPayload(text, history);
 
       // Call both webhooks in parallel
-      const promises = [
-        callAPI(WEBHOOK_URLS.tuvan, payload, 'Tư vấn luật'),
-        callAPI(WEBHOOK_URLS.hopdong, payload, 'Tạo hợp đồng')
-      ];
-      const results = await Promise.allSettled(promises);
+      const results = await Promise.allSettled([
+        callAPI(WEBHOOK_URLS.tuvan, payload),
+        callAPI(WEBHOOK_URLS.hopdong, payload)
+      ]);
 
       // Handle result 1
       removeTyping('tuvan');
@@ -652,17 +376,15 @@
       scrollToBottom(); persistMessages();
       $send.disabled = false; $input.disabled = false; $input.focus();
 
-      // Friendly hint if missing txn type
-      if (!state.profile.transaction_type){
+      if (!state.data.transaction_type){
         toast('Gợi ý: Chưa chọn "Loại giao dịch". Hãy chọn để hợp đồng dùng đúng mẫu.');
       }
     }
 
     function buildPayload(text, historyOverride){
       const history = historyOverride ?? state.messages.slice(-11, -1).map(({role, content, ts}) => ({role, content, ts}));
-      // To keep payload compact, duplicate the photo list with only metadata + dataUrl (already compressed)
-      const photos = (state.profile.photos||[]).map(({id,name,type,size,dataUrl,caption}) => ({id,name,type,size,dataUrl,caption}));
-      const profile = { ...state.profile, photos };
+      const photos = (state.data.photos||[]).map(({id,name,type,size,dataUrl}) => ({id,name,type,size,dataUrl}));
+      const profile = { schema_version: state.data.schema_version, transaction_type: state.data.transaction_type, photos };
       return {
         message: text,
         link: window.location.href,
@@ -716,7 +438,6 @@
       }
       try{ return JSON.stringify(obj); }catch{ return String(obj); }
     }
-
   </script>
 </body>
 </html>
