@@ -254,7 +254,7 @@
       const limitCount = 24;
       if (state.data.photos.length + files.length > limitCount) toast(`Tối đa ${limitCount} ảnh. Một số ảnh sẽ không được thêm.`);
       for (const file of files.slice(0, limitCount - state.data.photos.length)) {
-        const item = await readAndCompressImage(file, 1600, 0.75); // remove EXIF via canvas + nén
+        const item = await readAndCompressImage(file, 1200, 0.65); // Nén mạnh hơn: 1200px, quality 0.65
         state.data.photos.push(item);
       }
       persistData(); renderThumbs(); $photoInput.value = '';
@@ -328,7 +328,7 @@
     }
 
     // Read + compress image, remove EXIF via canvas
-    async function readAndCompressImage(file, maxSize=1600, quality=0.75){
+    async function readAndCompressImage(file, maxSize=1200, quality=0.65){
       const id = crypto.randomUUID?.() || String(Math.random());
       const name = file.name || ('image-' + id + '.jpg');
       const type = 'image/jpeg';
@@ -365,8 +365,13 @@
       // History (10 tin trước đó, không tính tin hiện tại)
       const history = state.messages.slice(-11, -1).map(({role, content, ts}) => ({role, content, ts}));
 
-      // Build payload
+      // Build payload (phải build trước khi xóa ảnh)
       const payload = buildPayload(text, history);
+      
+      // Xóa tất cả ảnh NGAY SAU KHI ĐÃ BUILD PAYLOAD
+      state.data.photos = [];
+      persistData();
+      renderThumbs();
 
       // Call both webhooks in parallel
       const results = await Promise.allSettled([
@@ -395,6 +400,7 @@
       }
 
       scrollToBottom(); persistMessages();
+      
       $send.disabled = false; $input.disabled = false; $input.focus();
 
       if (!state.data.transaction_type){
